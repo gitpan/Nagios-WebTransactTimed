@@ -1,0 +1,2 @@
+Nagios::WebTransactTimed a class to help construct Nagios service checks 
+of web server performance (for testing service provider performance etc).
