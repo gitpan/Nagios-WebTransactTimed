@@ -3,3 +3,9 @@ Revision history for Perl extension Nagios:WebTransactTimed.
 0.01  Fri May 30 23:37:59 2003
 	- original version; created by h2xs 1.19
 
+0.02  Changes to POD
+
+0.03  Correct inconsistent use of 'fail_ratio'. This breaks old client code where
+      fail_ratio was used as a probability/proportion ([0 .. 1]). Now it is used
+      as a percentage and relabelled as such.
+

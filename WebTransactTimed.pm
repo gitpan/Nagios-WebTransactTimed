@@ -4,7 +4,7 @@ use strict;
 
 use vars qw($VERSION @ISA) ;
 
-$VERSION = '0.01';
+$VERSION = '0.03';
 @ISA = qw(Nagios::WebTransact) ;
 
 use HTTP::Request::Common qw(GET POST) ;
@@ -24,13 +24,12 @@ use constant OK				=> TRUE ;
 
 use constant GET_TIME_THRESHOLD		=> 10 ;
 use constant FAIL_RATIO_PERCENT		=> 50 ;
-use constant FAIL_RATIO			=> FAIL_RATIO_PERCENT / 100 ;
 
 sub check {
   my ($self, $cgi_parm_vals_hr) = @_ ;
 
   my %defaults = ( cookies => TRUE, debug => TRUE, timeout => GET_TIME_THRESHOLD, agent => 'Mozilla/4.7', proxy => {},
-                   fail_if_1 => FALSE, verbose => 1, fail_ratio => FAIL_RATIO ) ;
+                   fail_if_1 => FALSE, verbose => 1, fail_ratio_percent => FAIL_RATIO_PERCENT ) ;
 
 					# check semantics.
 					# $fail_if_1  	?	return FAIL if any URL fails
@@ -41,16 +40,16 @@ sub check {
 
   my ($res, $req, $url_r, $resp_string, $timeout) ;
   my ($cookie_jar, $ua, $debug, $t0, $elapsed, @get_times) ;
-  my ($rounded_elapsed, @urls, $check_time, $verbose, $fail_ratio) ;
+  my ($rounded_elapsed, @urls, $check_time, $verbose, $fail_ratio, $fail_ratio_percent ) ;
   
   $ua = new LWP::UserAgent ;
   $ua->agent($parms{agent}) ;
 
   $debug = $parms{debug} ;
   $verbose = $parms{verbose} ;
-  $fail_ratio = $parms{fail_ratio} ;
-  croak("Expecting fail_ratio as a percentage [0-100%], got \$fail_ratio: $fail_ratio.\n") if $fail_ratio < 0 or $fail_ratio > 100 ;
-  $fail_ratio /= 100 ;
+  $fail_ratio_percent = $parms{fail_ratio_percent}  || FAIL_RATIO_PERCENT ;
+  croak("Expecting fail_ratio_percent as a percentage [0-100%], got \$fail_ratio:_percent $fail_ratio_percent\n") if $fail_ratio_percent < 0 or $fail_ratio_percent > 100 ;
+  $fail_ratio = $fail_ratio_percent / 100 ;
   $timeout = $parms{timeout} ;
   croak("Expecting timeout as a natural number [0 ... not_too_big], got \$timeout: $timeout.\n") if $timeout < 0 ;
 
@@ -110,10 +109,9 @@ __END__
 
 =head1 NAME
 
-Nagios::WebTransactTimed - An object that provides  a check method (usually called by a Nagios service check) to
+Nagios::WebTransactTimed - An object that provides a check method (usually called by a Nagios service check) to
 determine if a sequence of URLs can be got inside a time threshold, returning the times for each.
 
-Note that unlike WebTransact, this object only returns FAIL if all URLs fail or timeout.
 
 =head1 SYNOPSIS
 
@@ -124,11 +122,19 @@ Note that unlike WebTransact, this object only returns FAIL if all URLs fail or 
 
 =head1 DESCRIPTION
 
+WebTransactTimed is a subclass of WebTransact that checks web performance by downloading a sequence
+of URLs.
+
+The check is successfull if no more than B<fail_ratio> of the URLs fail ie a URL is downloaded
+inside the timeout period with a successfull HTTP return code and no indications of invalid content.
+
+Note that unlike WebTransact, this object only returns FAIL if all URLs fail or timeout.
+
 =head1 CONSTRUCTOR
 
 =over 4
 
-=item Nagios::WebTransact->new(ref_to_array_of_hash_refs)
+=item Nagios::WebTransactTimed->new(ref_to_array_of_hash_refs)
 
 E<10>
 
@@ -184,11 +190,14 @@ Possible options other than those specified by the super class are
 B<timeout> specifies a timeout different to the default (10 seconds) for each URL. When a URL B<canno>t be fetched,
 it is recorded as having taken B<10> (ten) seconds.
 
-B<fail_threshold> specifies that the check will return if the proportion of failures (ie timeouts or HTTP 5xx or 4xx return codes)
-as a percentage is greater than this threshold. eg if fail_thereshold is 100, fetching all the URls must fail
-before the check returns false.
+B<fail_ratio_percent> specifies that the check will return immediately (with a failure) if the proportion of failures
+(ie if HTTP::Response::is_success says it is or a timeout) as a percentage, is greater than this threshold.
+eg if fail_ratio_percent is 100, fetching all the URls must fail before the check returns false.
 
 B<verbose> is meant for CLI use (or in a CGI). It reports the time taken for each URL on standard out.
+
+check returns a boolean indication of success and a reference to an array containing the time taken for each URL.
+If a URL cannot be download (invalid content, HTTP failure or timeout), the time is marked as 10. 
 
 =back
 
